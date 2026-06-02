@@ -51,9 +51,66 @@ function normalizeGoogleFileId(value: string, label: string): string {
   return id;
 }
 
-function createGoogleAuth() {
+type ServiceAccountCredentials = {
+  client_email?: string;
+  private_key?: string;
+  [key: string]: unknown;
+};
+
+function normalizeServiceAccountCredentials(
+  credentials: ServiceAccountCredentials,
+): ServiceAccountCredentials {
+  const privateKey = credentials.private_key;
+
+  if (typeof privateKey !== 'string' || privateKey.length === 0) {
+    return credentials;
+  }
+
+  const normalizedKey = privateKey.replace(/\\n/g, '\n').trim();
+
+  if (!normalizedKey.includes('-----BEGIN')) {
+    throw new Error(
+      'Invalid service account private_key (missing PEM header). Prefer GOOGLE_APPLICATION_CREDENTIALS pointing to the JSON file from Google Cloud instead of embedding JSON in .env.',
+    );
+  }
+
+  return { ...credentials, private_key: normalizedKey };
+}
+
+async function loadServiceAccountCredentials(): Promise<ServiceAccountCredentials> {
+  const credentialsPath = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+
+  if (credentialsPath) {
+    const raw = await readFile(path.resolve(credentialsPath), 'utf8');
+    return normalizeServiceAccountCredentials(JSON.parse(raw) as ServiceAccountCredentials);
+  }
+
+  const inlineJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON;
+
+  if (!inlineJson) {
+    throw new Error(
+      'Missing Google credentials: set GOOGLE_APPLICATION_CREDENTIALS (path to service account JSON) or GOOGLE_SERVICE_ACCOUNT_JSON.',
+    );
+  }
+
+  return normalizeServiceAccountCredentials(JSON.parse(inlineJson) as ServiceAccountCredentials);
+}
+
+async function createGoogleAuth() {
+  const oauthClientId = process.env.GOOGLE_OAUTH_CLIENT_ID;
+  const oauthClientSecret = process.env.GOOGLE_OAUTH_CLIENT_SECRET;
+  const oauthRefreshToken = process.env.GOOGLE_OAUTH_REFRESH_TOKEN;
+
+  if (oauthClientId && oauthClientSecret && oauthRefreshToken) {
+    const oauth2 = new google.auth.OAuth2(oauthClientId, oauthClientSecret);
+    oauth2.setCredentials({ refresh_token: oauthRefreshToken });
+    return oauth2;
+  }
+
+  const credentials = await loadServiceAccountCredentials();
+
   return new google.auth.GoogleAuth({
-    credentials: JSON.parse(requireEnv('GOOGLE_SERVICE_ACCOUNT_JSON')),
+    credentials,
     scopes: [...SCOPES],
   });
 }
@@ -108,7 +165,7 @@ export async function generatePdfByEditingTemplate({
   outputPath,
   data,
 }: GeneratePdfInput): Promise<GeneratePdfResult> {
-  const auth = createGoogleAuth();
+  const auth = await createGoogleAuth();
   const docs = google.docs({ version: 'v1', auth });
   const drive = google.drive({ version: 'v3', auth });
   const documentId = normalizeGoogleFileId(templateDocId, 'templateDocId');

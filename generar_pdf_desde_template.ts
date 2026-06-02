@@ -2,7 +2,18 @@ import { mkdir, open, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { google } from 'googleapis';
-import { createGoogleAuth } from './google_auth.js';
+
+const GOOGLE_SCOPES = [
+  'https://www.googleapis.com/auth/drive.readonly',
+  'https://www.googleapis.com/auth/documents',
+] as const;
+
+function createGoogleAuth() {
+  return new google.auth.GoogleAuth({
+    keyFile: path.resolve(requireEnv('GOOGLE_APPLICATION_CREDENTIALS')),
+    scopes: [...GOOGLE_SCOPES],
+  });
+}
 
 type TemplateData = Record<string, string | number | boolean | null | undefined>;
 
@@ -97,7 +108,7 @@ export async function generatePdfByEditingTemplate({
   outputPath,
   data,
 }: GeneratePdfInput): Promise<GeneratePdfResult> {
-  const auth = await createGoogleAuth();
+  const auth = createGoogleAuth();
   const docs = google.docs({ version: 'v1', auth });
   const drive = google.drive({ version: 'v3', auth });
   const documentId = normalizeGoogleFileId(templateDocId, 'templateDocId');

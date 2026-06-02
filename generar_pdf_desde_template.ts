@@ -1,5 +1,6 @@
-import { mkdir, open, rm, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
+import { parseArgs } from 'node:util';
 import { google } from 'googleapis';
 
 type TemplateData = Record<string, string | number | boolean | null | undefined>;
@@ -146,25 +147,61 @@ export async function generatePdfByEditingTemplate({
   });
 }
 
-async function main() {
-  const result = await generatePdfByEditingTemplate({
-    templateDocId: requireEnv('TEMPLATE_DOC_ID'),
-    outputPath: path.join(process.cwd(), 'output', 'carta-muccam.pdf'),
-    data: {
-      CAPITULO: 'San Juan del Rio',
-      ASUNTO: 'Solicitud de apoyo para platicas informativas',
-      DESTINATARIO: 'Dr. Juan Carlos Quiroz Gomez',
-      FECHA: '21 de mayo de 2026',
-      PRESENTE: 'P R E S E N T E',
-      CUERPO_1:
-        'Por medio de la presente, la asociacion MUCCAM A.C. Capitulo San Juan del Rio solicita de la manera mas atenta su valioso apoyo para llevar a cabo platicas informativas dirigidas a nuestra comunidad y poblacion beneficiaria, con el objetivo de fomentar la prevencion, orientacion y concientizacion en temas de salud.',
-      CUERPO_2:
-        'Agradecemos de antemano la atencion brindada a esta peticion y quedamos en espera de una respuesta favorable, reiterando nuestra disposicion para trabajar en conjunto en beneficio de la comunidad. Sin mas por el momento, reciba un cordial saludo.',
-      FIRMA_NOMBRE: 'Ma. Esther Ramirez Avila',
-      FIRMA_CARGO: 'Presidenta',
-      ORGANIZACION: 'MUCCAM A.C. Capitulo San Juan del Rio',
-      TELEFONO: '427 108 3265',
+const CLI_USAGE = `Usage: tsx generar_pdf_desde_template.ts --data <json-file> [--output <pdf-path>] [--template-id <id>]
+
+Options:
+  -d, --data          JSON file with template placeholders (keys match {{KEY}} in the doc)
+  -o, --output        Output PDF path (default: output/carta-muccam.pdf)
+  -t, --template-id   Google Docs template ID (default: TEMPLATE_DOC_ID env)`;
+
+function parseCliArgs() {
+  const { values } = parseArgs({
+    options: {
+      data: { type: 'string', short: 'd' },
+      output: { type: 'string', short: 'o' },
+      'template-id': { type: 'string', short: 't' },
+      help: { type: 'boolean', short: 'h' },
     },
+    allowPositionals: false,
+  });
+
+  if (values.help) {
+    console.log(CLI_USAGE);
+    process.exit(0);
+  }
+
+  const dataPath = values.data;
+
+  if (!dataPath) {
+    throw new Error(`Missing required option: --data\n\n${CLI_USAGE}`);
+  }
+
+  return {
+    dataPath: path.resolve(dataPath),
+    outputPath: path.resolve(values.output ?? path.join(process.cwd(), 'output', 'carta-muccam.pdf')),
+    templateDocId: values['template-id'] ?? requireEnv('TEMPLATE_DOC_ID'),
+  };
+}
+
+async function loadTemplateData(filePath: string): Promise<TemplateData> {
+  const raw = await readFile(filePath, 'utf8');
+  const parsed: unknown = JSON.parse(raw);
+
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    throw new Error(`Data file must contain a JSON object: ${filePath}`);
+  }
+
+  return parsed as TemplateData;
+}
+
+async function main() {
+  const { dataPath, outputPath, templateDocId } = parseCliArgs();
+  const data = await loadTemplateData(dataPath);
+
+  const result = await generatePdfByEditingTemplate({
+    templateDocId,
+    outputPath,
+    data,
   });
 
   console.log(result);

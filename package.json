@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "test:letter": "tsx -r dotenv/config generar_carta_server.ts",
-    "test:pdf": "tsx -r dotenv/config generar_pdf_desde_template.ts"
+    "test:pdf": "tsx -r dotenv/config generar_pdf_desde_template.ts --data examples/carta-muccam.json"
   },
   "dependencies": {
     "dotenv": "^16.4.7",

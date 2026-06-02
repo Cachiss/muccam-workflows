@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "test:letter": "tsx -r dotenv/config generar_carta_server.ts",
+    "verify:auth": "tsx -r dotenv/config verificar_google_auth.ts",
+    "verify:auth:diagnostico": "tsx -r dotenv/config verificar_google_auth.ts --diagnostico",
+    "setup:google-credentials": "tsx -r dotenv/config exportar_credenciales_google.ts",
     "test:pdf": "tsx -r dotenv/config generar_pdf_desde_template.ts --data examples/carta-muccam.json"
   },
   "dependencies": {

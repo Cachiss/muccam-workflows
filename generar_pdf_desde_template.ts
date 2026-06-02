@@ -20,6 +20,12 @@ const SCOPES = [
   'https://www.googleapis.com/auth/documents',
 ] as const;
 
+/** Capítulo y organización fijos para todas las cartas de este flujo. */
+const FIXED_TEMPLATE_FIELDS: TemplateData = {
+  CAPITULO: 'San Juan del Rio',
+  ORGANIZACION: 'MUCCAM A.C. Capitulo San Juan del Rio',
+};
+
 function requireEnv(name: string): string {
   const value = process.env[name];
 
@@ -191,7 +197,7 @@ async function loadTemplateData(filePath: string): Promise<TemplateData> {
     throw new Error(`Data file must contain a JSON object: ${filePath}`);
   }
 
-  return parsed as TemplateData;
+  return { ...(parsed as TemplateData), ...FIXED_TEMPLATE_FIELDS };
 }
 
 async function main() {
